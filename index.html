@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiegand Code Parser & Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .parity-bit { color: #f43f5e; font-weight: 700; }
+        .facility-code { color: #10b981; font-weight: 700; }
+        .card-number { color: #3b82f6; font-weight: 700; }
+        .wiegand-binary {
+            font-family: 'Inter', monospace;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 1rem;
+            background-color: #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1.125rem;
+            margin-top: 0.5rem;
+            border: 1px solid #cbd5e1;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 sm:p-8 font-['Inter']">
+    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-2xl border border-gray-200">
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-6 border-b-2 border-indigo-500 pb-2">Wiegand Code Parser & Converter</h1>
+
+        <div class="space-y-6">
+            <!-- 1. Wiegand Size Selection -->
+            <div class="p-4 bg-indigo-50 rounded-lg">
+                <label class="block text-lg font-semibold text-indigo-700 mb-3">Select Wiegand Size:</label>
+                <div class="flex space-x-6">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="wiegandSize" value="26" checked class="form-radio h-5 w-5 text-indigo-600">
+                        <span class="ml-2 text-gray-700 font-medium">26-Bit</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="wiegandSize" value="34" class="form-radio h-5 w-5 text-indigo-600">
+                        <span class="ml-2 text-gray-700 font-medium">34-Bit</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 2. Input Format Selection -->
+            <div class="p-4 bg-purple-50 rounded-lg">
+                <label class="block text-lg font-semibold text-purple-700 mb-3">Input Code Format:</label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="inputFormat" value="dec" checked class="form-radio h-5 w-5 text-purple-600">
+                        <span class="ml-2 text-gray-700 font-medium">Decimal</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="inputFormat" value="hex" class="form-radio h-5 w-5 text-purple-600">
+                        <span class="ml-2 text-gray-700 font-medium">Hexadecimal</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="inputFormat" value="bin" class="form-radio h-5 w-5 text-purple-600">
+                        <span class="ml-2 text-gray-700 font-medium">Binary</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="radio" name="inputFormat" value="fccn" class="form-radio h-5 w-5 text-purple-600">
+                        <span class="ml-2 text-gray-700 font-medium">FC/CN Pair</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 3. Dynamic Input Fields Container -->
+            <div id="dynamicInputContainer">
+                <div id="singleInputContainer" class="input-group">
+                    <label for="wiegandInput" class="block text-sm font-medium text-gray-700 mb-1">Enter Full Wiegand Code:</label>
+                    <input type="text" id="wiegandInput" value="1000" placeholder="Enter Wiegand Code (e.g., 1000 for Decimal)"
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition duration-150 ease-in-out text-lg">
+                </div>
+
+                <div id="fcCnInputContainer" class="input-group hidden space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="fcInput" class="block text-sm font-medium text-gray-700 mb-1">Facility Code (FC):</label>
+                            <input type="number" id="fcInput" placeholder="FC (e.g., 100)" value="100" min="0"
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition duration-150 ease-in-out text-lg">
+                        </div>
+                        <div>
+                            <label for="cnInput" class="block text-sm font-medium text-gray-700 mb-1">Card Number (CN):</label>
+                            <input type="number" id="cnInput" placeholder="CN (e.g., 12345)" value="12345" min="0"
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition duration-150 ease-in-out text-lg">
+                        </div>
+                    </div>
+                    <p id="fccn_max_limits" class="text-sm text-gray-600 pt-1">W26 Limits: FC (0-255), CN (0-65535)</p>
+                </div>
+            </div>
+
+            <!-- 4. Calculate Button -->
+            <button onclick="convertWiegandCode()"
+                    class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 transition duration-150 ease-in-out shadow-md hover:shadow-lg">
+                Parse & Convert
+            </button>
+            <div id="error-message" class="text-center text-red-600 font-medium hidden p-3 bg-red-50 rounded-lg border border-red-200"></div>
+        </div>
+
+        <!-- 5. Results Section -->
+        <div id="results-section" class="mt-8 pt-6 border-t border-gray-300 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Parsed Wiegand Output</h2>
+
+            <div class="space-y-4">
+                <!-- Parity Status -->
+                <div class="p-4 rounded-lg border border-gray-300 bg-gray-50 flex justify-between items-center" id="parityStatusBox">
+                    <h3 class="text-xl font-bold text-gray-800">Parity Check Status:</h3>
+                    <span id="parityStatus" class="text-xl font-extrabold px-3 py-1 rounded-full"></span>
+                </div>
+
+                <!-- Binary Output -->
+                <div class="bg-gray-50 p-4 rounded-lg border">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Full Binary Code (<span id="bitsOutput"></span>):</h3>
+                    <div class="wiegand-binary" id="binaryOutput"></div>
+                    <p id="parityDescription" class="text-sm text-gray-600 mt-2"></p>
+                </div>
+
+                <!-- Extracted Components and Other Formats -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+                        <p class="text-sm font-medium text-emerald-800">Facility Code (FC):</p>
+                        <p id="fcOutput" class="text-xl font-bold text-emerald-600"></p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-blue-200 bg-blue-50">
+                        <p class="text-sm font-medium text-blue-800">Card Number (CN):</p>
+                        <p id="cnOutput" class="text-xl font-bold text-blue-600"></p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-300 bg-gray-100">
+                        <p class="text-sm font-medium text-gray-800">Decimal Equivalent:</p>
+                        <p id="decimalOutput" class="text-xl font-bold text-gray-600"></p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-300 bg-gray-100">
+                        <p class="text-sm font-medium text-gray-800">Hexadecimal Equivalent:</p>
+                        <p id="hexOutput" class="text-xl font-bold text-gray-600"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function countOnes(binaryString) {
+            return (binaryString.match(/1/g) || []).length;
+        }
+
+        function getCanonicalBinary(inputValue, inputFormat, requiredLength) {
+            let binString = '';
+            inputValue = String(inputValue).trim();
+
+            if (inputFormat === 'dec') {
+                if (!/^\d+$/.test(inputValue)) throw new Error("Invalid decimal input.");
+                binString = BigInt(inputValue).toString(2);
+            } else if (inputFormat === 'hex') {
+                inputValue = inputValue.replace(/^0x/, '');
+                if (!/^[0-9a-fA-F]+$/.test(inputValue)) throw new Error("Invalid hexadecimal input.");
+                binString = BigInt('0x' + inputValue).toString(2);
+            } else if (inputFormat === 'bin') {
+                if (!/^[01]+$/.test(inputValue)) throw new Error("Invalid binary input.");
+                binString = inputValue;
+            } else {
+                throw new Error("Invalid input format selected.");
+            }
+
+            if (binString.length > requiredLength) {
+                throw new Error(`The code entered is too long for ${requiredLength}-bit Wiegand (Length: ${binString.length}).`);
+            }
+
+            return binString.padStart(requiredLength, '0');
+        }
+
+        function parseWiegandVisuals(binValue, size) {
+            const totalBits = size;
+            const p0 = binValue.charAt(0);
+            const pEnd = binValue.charAt(totalBits - 1);
+            let fcBinary, cnBinary;
+
+            if (totalBits === 26) {
+                fcBinary = binValue.substring(1, 9);
+                cnBinary = binValue.substring(9, 25);
+            } else {
+                fcBinary = binValue.substring(1, 17);
+                cnBinary = binValue.substring(17, 33);
+            }
+
+            return `<span class="parity-bit">${p0}</span>` +
+                   `<span class="facility-code">${fcBinary}</span>` +
+                   `<span class="card-number">${cnBinary}</span>` +
+                   `<span class="parity-bit">${pEnd}</span>`;
+        }
+
+        function parseWiegand(binValue, size) {
+            const totalBits = size;
+            const p0 = binValue.charAt(0);
+            const pEnd = binValue.charAt(totalBits - 1);
+
+            let fcBinary, cnBinary, p0Data, pEndData, expectedPEnd, expectedP0;
+            let description;
+
+            if (totalBits === 26) {
+                fcBinary = binValue.substring(1, 9);
+                cnBinary = binValue.substring(9, 25);
+
+                p0Data = fcBinary + cnBinary.substring(0, 4);
+                pEndData = cnBinary.substring(4, 16);
+
+                expectedP0 = (countOnes(p0Data) % 2 === 0) ? '0' : '1';
+                expectedPEnd = (countOnes(pEndData) % 2 === 0) ? '1' : '0';
+                description = `P0 (Even) from FC (8) and CN[0-3] (4). P25 (Odd) from CN[4-15] (12).`;
+
+            } else { // 34-bit
+                fcBinary = binValue.substring(1, 17);
+                cnBinary = binValue.substring(17, 33);
+
+                p0Data = fcBinary;
+                pEndData = cnBinary;
+
+                expectedP0 = (countOnes(p0Data) % 2 === 0) ? '0' : '1';
+                expectedPEnd = (countOnes(pEndData) % 2 === 0) ? '1' : '0';
+                description = `P0 (Even) from FC (16). P33 (Odd) from CN (16).`;
+            }
+
+            const isParityValid = (p0 === expectedP0 && pEnd === expectedPEnd);
+            const fcDec = parseInt(fcBinary, 2);
+            const cnDec = parseInt(cnBinary, 2);
+
+            return { isParityValid, fcDec, cnDec, description };
+        }
+
+        function deriveWiegand(fcDec, cnDec, size) {
+            let fcBits, cnBits, p0Data, pEndData, description;
+            let maxFc, maxCn;
+
+            if (size === 26) {
+                fcBits = 8; cnBits = 16;
+                maxFc = 255; maxCn = 65535;
+            } else {
+                fcBits = 16; cnBits = 16;
+                maxFc = 65535; maxCn = 65535;
+            }
+
+            if (fcDec > maxFc || cnDec > maxCn) {
+                throw new Error(`Input exceeds Wiegand ${size}-bit limits: FC max ${maxFc}, CN max ${maxCn}.`);
+            }
+
+            const fcBinary = fcDec.toString(2).padStart(fcBits, '0');
+            const cnBinary = cnDec.toString(2).padStart(cnBits, '0');
+
+            let p0, pEnd;
+
+            if (size === 26) {
+                p0Data = fcBinary + cnBinary.substring(0, 4);
+                pEndData = cnBinary.substring(4, 16);
+
+                p0 = (countOnes(p0Data) % 2 === 0) ? '0' : '1';
+                pEnd = (countOnes(pEndData) % 2 === 0) ? '1' : '0';
+                description = `Derived from FC (8) and CN (16). P0 (Even) from FC (8) and CN[0-3] (4). P25 (Odd) from CN[4-15] (12).`;
+
+            } else {
+                p0Data = fcBinary;
+                pEndData = cnBinary;
+
+                p0 = (countOnes(p0Data) % 2 === 0) ? '0' : '1';
+                pEnd = (countOnes(pEndData) % 2 === 0) ? '1' : '0';
+                description = `Derived from FC (16) and CN (16). P0 (Even) from FC (16). P33 (Odd) from CN (16).`;
+            }
+
+            const binValue = p0 + fcBinary + cnBinary + pEnd;
+
+            return { binValue, fcDec, cnDec, description, isParityValid: true };
+        }
+
+        function convertWiegandCode() {
+            const size = parseInt(document.querySelector('input[name="wiegandSize"]:checked').value);
+            const inputFormat = document.querySelector('input[name="inputFormat"]:checked').value;
+            const inputValue = document.getElementById('wiegandInput').value.trim();
+
+            const errorMessage = document.getElementById('error-message');
+            const resultsSection = document.getElementById('results-section');
+
+            errorMessage.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+
+            try {
+                if (inputFormat !== 'fccn' && !inputValue) {
+                    throw new Error("Please enter a Wiegand code to convert.");
+                }
+
+                let binValue, result;
+
+                if (inputFormat === 'fccn') {
+                    const fcInput = document.getElementById('fcInput').value;
+                    const cnInput = document.getElementById('cnInput').value;
+
+                    const fcDec = parseInt(fcInput);
+                    const cnDec = parseInt(cnInput);
+
+                    if (isNaN(fcDec) || isNaN(cnDec) || fcDec < 0 || cnDec < 0) {
+                         throw new Error("Please enter valid, non-negative numbers for Facility Code and Card Number.");
+                    }
+
+                    result = deriveWiegand(fcDec, cnDec, size);
+                    binValue = result.binValue;
+
+                } else {
+                    binValue = getCanonicalBinary(inputValue, inputFormat, size);
+                    result = parseWiegand(binValue, size);
+                }
+
+                const decValue = BigInt('0b' + binValue);
+                const hexLength = (size === 26) ? 8 : 10;
+                const hexValue = decValue.toString(16).toUpperCase().padStart(hexLength, '0');
+
+                document.getElementById('bitsOutput').textContent = size + ' Bits';
+                document.getElementById('binaryOutput').innerHTML = parseWiegandVisuals(binValue, size);
+                document.getElementById('parityDescription').textContent = result.description;
+                document.getElementById('fcOutput').textContent = result.fcDec;
+                document.getElementById('cnOutput').textContent = result.cnDec;
+                document.getElementById('decimalOutput').textContent = decValue.toLocaleString();
+                document.getElementById('hexOutput').textContent = '0x' + hexValue;
+
+                const statusBox = document.getElementById('parityStatusBox');
+                const statusText = document.getElementById('parityStatus');
+
+                statusText.classList.remove('bg-red-500', 'bg-green-500', 'text-white');
+                statusBox.classList.remove('bg-red-50', 'border-red-200', 'bg-green-50', 'border-green-200', 'bg-gray-50', 'border-gray-300');
+
+                if (result.isParityValid) {
+                    statusText.textContent = 'VALID';
+                    statusText.classList.add('bg-green-500', 'text-white');
+                    statusBox.classList.add('bg-green-50', 'border-green-200');
+                } else {
+                    statusText.textContent = 'INVALID';
+                    statusText.classList.add('bg-red-500', 'text-white');
+                    statusBox.classList.add('bg-red-50', 'border-red-200');
+                }
+
+                resultsSection.classList.remove('hidden');
+
+            } catch (error) {
+                errorMessage.textContent = 'Error: ' + error.message;
+                errorMessage.classList.remove('hidden');
+                console.error(error);
+            }
+        }
+
+        function handleInputFormatChange() {
+            const size = parseInt(document.querySelector('input[name="wiegandSize"]:checked').value);
+            const format = document.querySelector('input[name="inputFormat"]:checked').value;
+            const singleContainer = document.getElementById('singleInputContainer');
+            const fccnContainer = document.getElementById('fcCnInputContainer');
+            const fccnMaxLimits = document.getElementById('fccn_max_limits');
+            const fcInput = document.getElementById('fcInput');
+            const cnInput = document.getElementById('cnInput');
+
+            if (size === 26) {
+                fccnMaxLimits.textContent = "W26 Limits: FC (0-255), CN (0-65535)";
+                fcInput.max = 255;
+                cnInput.max = 65535;
+            } else {
+                fccnMaxLimits.textContent = "W34 Limits: FC (0-65535), CN (0-65535)";
+                fcInput.max = 65535;
+                cnInput.max = 65535;
+            }
+
+            if (format === 'fccn') {
+                singleContainer.classList.add('hidden');
+                fccnContainer.classList.remove('hidden');
+            } else {
+                singleContainer.classList.remove('hidden');
+                fccnContainer.classList.add('hidden');
+            }
+
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('input[name="wiegandSize"]').forEach(input => {
+                input.addEventListener('change', handleInputFormatChange);
+            });
+
+            document.querySelectorAll('input[name="inputFormat"]').forEach(input => {
+                input.addEventListener('change', handleInputFormatChange);
+            });
+
+            handleInputFormatChange();
+        });
+    </script>
+</body>
+</html>
